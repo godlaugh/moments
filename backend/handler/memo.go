@@ -44,7 +44,7 @@ func NewMemoHandler(injector do.Injector) *MemoHandler {
 }
 
 type memoListResp struct {
-	List    []db.Memo `json:"list,omitempty"`    //memo列表
+	List    []db.Memo `json:"list"`            //memo列表
 	HasNext bool      `json:"hasNext,omitempty"` //是否有下一页
 	Total   int64     `json:"total,omitempty"`   //总数
 }
@@ -149,25 +149,46 @@ func (m MemoHandler) ListMemos(c echo.Context) error {
 		tx = tx.Where("userId = ? or (userId <> ? and showType = 1)", currentUser.Id, currentUser.Id)
 		tx = tx.Where("userId = ? or createdAt <= ?", currentUser.Id, time.Now())
 	}
-	if req.Tag != "" {
-		if strings.Contains(req.Tag, ",") {
-			tags := strings.Split(req.Tag, ",")
-			for _, tag := range tags {
-				tx = tx.Where("tags like ?", fmt.Sprintf("%%%s,%%", tag))
-			}
-		} else {
-			tx = tx.Where("tags like ?", fmt.Sprintf("%%%s,%%", req.Tag))
-		}
-	}
+	var scopeUserId *int32
 	if req.Username != "" {
 		var target db.User
 		if err := m.base.db.Where("username = ?", req.Username).First(&target).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 			return FailRespWithMsg(c, Fail, "不存在的用户")
 		}
+		scopeUserId = &target.Id
 		tx = tx.Where("userId = ?", target.Id)
 	}
 	if req.UserId != nil {
+		uid := int32(*req.UserId)
+		scopeUserId = &uid
 		tx = tx.Where("userId = ?", req.UserId)
+	}
+	if req.Tag != "" {
+		var allTags []db.Tag
+		m.base.db.Find(&allTags)
+		var paths []string
+		if strings.Contains(req.Tag, ",") {
+			paths = strings.Split(req.Tag, ",")
+		} else {
+			paths = []string{req.Tag}
+		}
+		for _, p := range paths {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			tagIds := tagIdsForPath(allTags, scopeUserId, p)
+			if len(tagIds) == 0 {
+				// 兜底：Tag 表未迁移数据时退回老 LIKE 行为
+				tx = tx.Where("tags like ?", fmt.Sprintf("%%%s,%%", p))
+			} else {
+				idSlice := make([]int32, 0, len(tagIds))
+				for id := range tagIds {
+					idSlice = append(idSlice, id)
+				}
+				tx = tx.Where("id IN (SELECT memoId FROM MemoTag WHERE tagId IN ?)", idSlice)
+			}
+		}
 	}
 	tx.Session(&gorm.Session{}).Order("pinned desc, createdAt desc").Limit(req.Size).Offset(offset).Find(&list)
 	tx.Session(&gorm.Session{}).Count(&total)
@@ -180,6 +201,12 @@ func (m MemoHandler) ListMemos(c echo.Context) error {
 
 	for i := range list {
 		m.handleImgConfigs(&sysConfigVO, &list[i])
+	}
+	if err := attachTagPaths(m.base.db, list); err != nil {
+		m.base.log.Error().Msgf("填充标签路径失败,原因:%s", err)
+	}
+	if list == nil {
+		list = make([]db.Memo, 0)
 	}
 
 	return SuccessResp(c, memoListResp{
@@ -218,6 +245,9 @@ func (m MemoHandler) RemoveMemo(c echo.Context) error {
 	}
 	if m.base.db.Delete(&memo).RowsAffected != 1 {
 		return FailRespWithMsg(c, Fail, "删除失败")
+	}
+	if err := m.base.db.Where("memoId = ?", id).Delete(&db.MemoTag{}).Error; err != nil {
+		m.base.log.Error().Msgf("删除memo标签关联失败,memoId:%d,原因:%s", id, err)
 	}
 
 	return SuccessResp(c, h{})
@@ -345,15 +375,7 @@ func (m MemoHandler) SaveMemo(c echo.Context) error {
 
 	//content, tags := FindAndReplaceTags(req.Content)
 	//m.base.log.Info().Msgf("tags is %+v,content is %s", tags, content)
-	if len(req.Tags) == 0 {
-		memo.Tags = nil
-	} else {
-		memoTags := strings.Join(req.Tags, ",")
-		if memoTags != "" {
-			memoTags = fmt.Sprintf("%s,", memoTags)
-			memo.Tags = &memoTags
-		}
-	}
+
 	memo.Content = strings.TrimSpace(req.Content)
 
 	bytes, _ := json.Marshal(req.Ext)
@@ -373,7 +395,19 @@ func (m MemoHandler) SaveMemo(c echo.Context) error {
 		*memo.CreatedAt = req.CreatedAt.Local()
 	}
 
-	m.base.db.Save(&memo)
+	err = m.base.db.Transaction(func(txb *gorm.DB) error {
+		if err := txb.Save(&memo).Error; err != nil {
+			return err
+		}
+		return syncMemoTags(txb, &memo, currentUser.Id, req.Tags)
+	})
+	if err != nil {
+		m.base.log.Error().Msgf("保存memo失败,原因:%s", err)
+		if errors.Is(err, ErrInvalidTagPath) {
+			return FailRespWithMsg(c, ParamError, "标签格式不合法:不能包含逗号,最多10级,单段最长50字符")
+		}
+		return FailResp(c, Fail)
+	}
 
 	return SuccessResp(c, h{})
 }
@@ -426,6 +460,11 @@ func (m MemoHandler) GetMemo(c echo.Context) error {
 	memo.Comments = comments
 
 	m.handleImgConfigs(&sysConfigVO, &memo)
+	wrapper := []db.Memo{memo}
+	if err := attachTagPaths(m.base.db, wrapper); err != nil {
+		m.base.log.Error().Msgf("填充标签路径失败,原因:%s", err)
+	}
+	memo = wrapper[0]
 
 	return SuccessResp(c, memo)
 }

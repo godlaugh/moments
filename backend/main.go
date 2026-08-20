@@ -73,6 +73,7 @@ func main() {
 	tx := do.MustInvoke[*gorm.DB](injector)
 
 	e := do.MustInvoke[*echo.Echo](injector)
+	e.Use(myMiddleware.LegacyTagRedirect())
 	e.Use(myMiddleware.Auth(injector))
 
 	setupRouter(injector)
@@ -103,6 +104,7 @@ func main() {
 	migrateTo3(tx, myLogger)
 	migrateIframeVideoUrl(tx, myLogger)
 	migrateFriendLink(tx, myLogger)
+	migrateFlatTagsToTree(tx, myLogger)
 
 	e.HideBanner = true
 	err = e.Start(fmt.Sprintf(":%d", cfg.Port))

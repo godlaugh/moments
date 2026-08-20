@@ -41,6 +41,7 @@ export type  MemoVO = {
     user: UserVO,
     comments: Array<CommentVO>
     tags: string
+    tagPaths?: Array<string>
     imgConfigs: Array<{
         url: string;
         thumbUrl: string;
@@ -151,4 +152,19 @@ export type Friend = {
     icon: string;
     url: string;
     desc: string;
+}
+
+export type TagNode = {
+    id: number
+    name: string
+    parentId: number
+    path: string
+    count: number
+    total: number
+    children: TagNode[]
+}
+
+export type TagListResp = {
+    tags: string[]
+    tree: TagNode[]
 }

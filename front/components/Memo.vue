@@ -61,11 +61,11 @@
           >
             {{ getMemoMaxHeightStyle() === "" ? "收起" : "全文" }}
           </div>
-          <div v-if="tags.length > 0" class="flex gap-2 mt-2">
+          <div v-if="tags.length > 0" class="flex flex-wrap gap-2 mt-2">
             <span v-for="(tag, index) in tags" :key="`tag-${index}`">
-              <NuxtLink :to="`/tags/${item.user.username}/${tag}`">
-                <UBadge size="xs" color="gray" variant="solid">
-                  {{ tag }}
+              <NuxtLink :to="`/tags/${item.user.username}/${tag.path.split('/').map(encodeURIComponent).join('/')}`">
+                <UBadge size="xs" :color="tag.depth > 1 ? 'primary' : 'gray'" variant="subtle" :title="tag.path">
+                  <span v-if="tag.parentNames.length" class="opacity-60">{{ tag.parentNames.join("/") }}/</span>{{ tag.name }}
                 </UBadge>
               </NuxtLink>
             </span>
@@ -345,15 +345,25 @@ const location = computed(() => {
 });
 
 const tags = computed(() => {
-  const tagsStr = item.value.tags;
-  if (!tagsStr) {
-    return [];
+  // 优先使用后端生成的全路径;兜底解析老 tags 字符串(带尾逗号)
+  let paths: string[] = []
+  if (item.value.tagPaths && item.value.tagPaths.length) {
+    paths = item.value.tagPaths
+  } else if (item.value.tags) {
+    const tagsStr = item.value.tags
+    const len = tagsStr.length
+    const flat = tagsStr[len - 1] === "," ? tagsStr.substring(0, len - 1) : tagsStr
+    paths = flat.split(",").filter(Boolean)
   }
-  const len = tagsStr.length;
-  if (tagsStr[len - 1] === ",") {
-    return tagsStr.substring(0, len - 1).split(",");
-  }
-  return tagsStr.split(",");
+  return paths.map(path => {
+    const segs = path.split("/").filter(Boolean)
+    return {
+      path,
+      name: segs[segs.length - 1] || path,
+      parentNames: segs.slice(0, -1),
+      depth: segs.length,
+    }
+  })
 });
 
 const doComment = () => {

@@ -27,6 +27,7 @@ type Memo struct {
 	User            *User            `json:"user,omitempty"`
 	Comments        []Comment        `json:"comments,omitempty"`
 	Tags            *string          `json:"tags,omitempty"`
+	TagPaths        []string         `gorm:"-" json:"tagPaths,omitempty"` // 从 MemoTag 关联表生成的全路径标签，如 "技术/Go"
 	ImgConfigs      *[]*vo.ImgConfig `gorm:"-" json:"imgConfigs,omitempty"`
 }
 

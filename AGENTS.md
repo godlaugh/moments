@@ -3,6 +3,15 @@
 Go 后端（Echo + GORM/SQLite）+ Nuxt3 前端的开源朋友圈项目。
 许可证 GPL-3.0：自建自用/对外提供 API 服务无需开源；修改后**分发**必须开源。
 
+## 文档索引（docs/）
+
+改代码前先读对应文档，改完同步更新：
+
+- `docs/ARCHITECTURE.md`：架构与关键机制（DI、鉴权链路、统一响应/错误码、前端状态管理、已知坑）
+- `docs/DATA_MODEL.md`：5 张表结构 + **标签存储格式**（`Memo.tags` 带尾逗号的逗号分隔串，筛选靠 `LIKE '%tag,%'`）
+- `docs/API.md`：接口概览与免登录白名单（权威来源是 `backend/router.go` 与 `middleware/auth.go`）
+- `docs/PRD.md`：需求文档（当前为 multi-level-tag 骨架，等需求方填充）
+
 ## 目录结构
 
 - `backend/`：Go 后端（API 全在 `/api/*` 路由下）
