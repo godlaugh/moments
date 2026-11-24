@@ -152,7 +152,7 @@
     </div>
 
     <img
-      class="header-img w-full select-none"
+      class="header-img w-full select-none touch-manipulation"
       draggable="false"
       :src="props.user.coverUrl"
       alt=""

@@ -31,29 +31,31 @@
             class="w-6 h-6 text-[#9fc84a] cursor-pointer"
           ></UIcon>
         </div>
-        <NuxtLink
-          to="/new"
-          v-if="global.userinfo.token && $route.path === '/'"
-          class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
-        >
-          <UIcon name="i-carbon-camera" class="w-6 h-6 text-[#9fc84a]"></UIcon>
-        </NuxtLink>
-        <div
-          class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
-          @click="open = true"
-        >
-          <UIcon
-            name="i-icon-park-solid-more-four"
-            class="w-6 h-6 text-[#9fc84a] cursor-pointer"
-          ></UIcon>
-        </div>
-        <NuxtLink
-          to="/user/login"
-          v-if="!global.userinfo.token && $route.path === '/'"
-          class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
-        >
-          <UIcon name="i-carbon-login" class="w-6 h-6 text-[#9fc84a]"></UIcon>
-        </NuxtLink>
+        <template v-if="showToolbar">
+          <NuxtLink
+            to="/new"
+            v-if="global.userinfo.token && $route.path === '/'"
+            class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
+          >
+            <UIcon name="i-carbon-camera" class="w-6 h-6 text-[#9fc84a]"></UIcon>
+          </NuxtLink>
+          <div
+            class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
+            @click="open = true"
+          >
+            <UIcon
+              name="i-icon-park-solid-more-four"
+              class="w-6 h-6 text-[#9fc84a] cursor-pointer"
+            ></UIcon>
+          </div>
+          <NuxtLink
+            to="/user/login"
+            v-if="!global.userinfo.token && $route.path === '/'"
+            class="dark:bg-gray-900/85 mr-4 rounded-full bg-slate-50 w-10 h-10 flex items-center justify-center shadow-xl"
+          >
+            <UIcon name="i-carbon-login" class="w-6 h-6 text-[#9fc84a]"></UIcon>
+          </NuxtLink>
+        </template>
       </div>
     </div>
 
@@ -67,6 +69,7 @@ import { useGlobalState } from "~/store";
 
 const global = useGlobalState();
 const open = useState<boolean>("sidebarOpen", () => false);
+const showToolbar = useState<boolean>("headerToolbarVisible", () => false);
 const currentUser = useState<UserVO>("userinfo");
 const sysConfig = useState<SysConfigVO>("sysConfig");
 const currentProfile = await useMyFetch<UserVO>("/user/profile");
