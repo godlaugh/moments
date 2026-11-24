@@ -27,7 +27,7 @@ func migrateTo3(tx *gorm.DB, log zerolog.Logger) {
 		if err := tx.First(&admin).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 			admin.Username = "admin"
 			admin.Password = "$2a$12$Ruw0XIDW3IuHmD3WXsRTnOUt/0sfqgKWP3wbsqx5sGcCuebWa6X.i"
-			admin.Title = "极简朋友圈"
+			admin.Title = "Sunrise Studio"
 			admin.Slogan = "修道者，逆天而行，注定要一生孤独。"
 			admin.Nickname = "admin"
 			admin.EnableS3 = "0"
@@ -61,6 +61,7 @@ func migrateTo3(tx *gorm.DB, log zerolog.Logger) {
 			}
 		}
 		item.EnableGoogleRecaptcha = false
+		item.EnableAutoLoadNextPage = true
 		item.EnableComment = true
 		item.MaxCommentLength = 120
 		item.MaxCommentLength = 300

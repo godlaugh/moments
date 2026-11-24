@@ -77,7 +77,7 @@ if (currentProfile) {
 }
 const { y } = useWindowScroll();
 useHead({
-  title: sysConfigVO.title,
+  title: sysConfigVO.title || "Sunrise Studio",
   link: [
     {
       rel: "shortcut icon",

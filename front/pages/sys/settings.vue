@@ -151,7 +151,7 @@ const state = reactive({
   commentOrder: 'desc',
   timeFormat: 'timeAgo',
   adminUserName: "admin",
-  title: "极简朋友圈",
+  title: "Sunrise Studio",
   favicon: "/favicon.ico",
   beiAnNo: "",
   css: "",

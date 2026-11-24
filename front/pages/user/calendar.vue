@@ -52,12 +52,12 @@
     <div class="flex flex-col divide-y divide-[#C0BEBF]/20 ">
       <Memo v-bind:memo="m" v-for="m in memos" :key="m.id"/>
     </div>
-    <div ref="loadMoreEle" class="text-xs text-center text-gray-500 py-2" @click="loadMore" v-if="hasNext">
-      点击加载更多
-    </div>
-    <div class="text-xs text-center text-gray-500 py-2" @click="loadMore" v-else>
-      已经到底啦
-    </div>
+    <MemoListFooter
+      :loading="initialLoading"
+      :loading-more="loadingMore"
+      :has-next="hasNext"
+      @load-more="loadMore"
+    />
   </div>
 </template>
 
@@ -66,7 +66,6 @@ import type {MemoVO, UserVO} from "~/types";
 import {add, format, isSameDay, sub} from "date-fns";
 import Memo from "~/components/Memo.vue";
 import {memoChangedEvent, memoReloadEvent} from "~/event";
-import {useElementVisibility} from '@vueuse/core'
 
 const ranges = [
   {label: '一周内', duration: {days: 7}},
@@ -105,13 +104,8 @@ const loadTags = async () => {
 }
 
 
-const loadMoreEle = ref(null)
-const targetIsVisible = useElementVisibility(loadMoreEle)
-watch(targetIsVisible, async (visible) => {
-  if (visible) {
-    await loadMore()
-  }
-})
+const initialLoading = ref(true)
+const loadingMore = ref(false)
 const hasNext = ref(false)
 
 
@@ -122,41 +116,55 @@ onMounted(async () => {
 })
 
 const reload = async () => {
+  initialLoading.value = true
   state.page = 1
-  const res = await useMyFetch<{
-    list: Array<MemoVO>,
-    total: number,
-    hasNext: boolean
-  }>('/memo/list', {
-    page: state.page,
-    size: state.size,
-    start: state.range.start,
-    end: state.range.end,
-    contentContains: state.contentContains,
-    showType: state.showType,
-    tag: state.tags.join(','),
-  })
-  memos.value = res.list
-  hasNext.value = res.hasNext
+  try {
+    const res = await useMyFetch<{
+      list: Array<MemoVO>,
+      total: number,
+      hasNext: boolean
+    }>('/memo/list', {
+      page: state.page,
+      size: state.size,
+      start: state.range.start,
+      end: state.range.end,
+      contentContains: state.contentContains,
+      showType: state.showType,
+      tag: state.tags.join(','),
+    })
+    memos.value = res?.list || []
+    hasNext.value = Boolean(res?.hasNext)
+  } finally {
+    initialLoading.value = false
+  }
 }
 
 const loadMore = async () => {
-  state.page = state.page + 1
-  const res = await useMyFetch<{
-    list: Array<MemoVO>,
-    total: number,
-    hasNext: boolean
-  }>('/memo/list', {
-    page: state.page,
-    size: state.size,
-    start: state.range.start,
-    end: state.range.end,
-    contentContains: state.contentContains,
-    showType: state.showType,
-    tag: state.tags.join(','),
-  })
-  memos.value = [...memos.value, ...res.list]
-  hasNext.value = res.hasNext
+  if (initialLoading.value || loadingMore.value || !hasNext.value) {
+    return
+  }
+  loadingMore.value = true
+  const nextPage = state.page + 1
+  try {
+    const res = await useMyFetch<{
+      list: Array<MemoVO>,
+      total: number,
+      hasNext: boolean
+    }>('/memo/list', {
+      page: nextPage,
+      size: state.size,
+      start: state.range.start,
+      end: state.range.end,
+      contentContains: state.contentContains,
+      showType: state.showType,
+      tag: state.tags.join(','),
+    })
+    state.page = nextPage
+    memos.value = [...memos.value, ...(res?.list || [])]
+    hasNext.value = Boolean(res?.hasNext)
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 memoReloadEvent.on(async () => {

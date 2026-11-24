@@ -4,31 +4,21 @@
   <div class="flex flex-col divide-y divide-[#C0BEBF]/20">
     <Memo v-bind:memo="memo" v-for="memo in memos" :key="memo.id" />
   </div>
-  <div
-    v-if="hasNext"
-    ref="loadMoreEle"
-    class="text-xs text-center text-gray-500 py-2"
-    @click="loadMore"
-  >
-    点击加载更多
-  </div>
-  <div class="text-xs text-center text-gray-500 py-2" @click="loadMore" v-else>
-    已经到底啦
-  </div>
+  <MemoListFooter
+    :loading="initialLoading"
+    :loading-more="loadingMore"
+    :has-next="hasNext"
+    @load-more="loadMore"
+  />
 </template>
 
 <script setup lang="ts">
 import type { MemoVO } from "~/types";
 import Memo from "~/components/Memo.vue";
 import { memoChangedEvent, memoReloadEvent } from "~/event";
-import { useElementVisibility } from "@vueuse/core";
-const loadMoreEle = ref(null);
-const targetIsVisible = useElementVisibility(loadMoreEle);
-watch(targetIsVisible, async (visible) => {
-  if (visible) {
-    await loadMore();
-  }
-});
+
+const initialLoading = ref(true);
+const loadingMore = ref(false);
 const hasNext = ref(false);
 const route = useRoute();
 const userId = route.params.id as any as string;
@@ -43,27 +33,46 @@ onMounted(async () => {
 });
 
 const reload = async () => {
-  const res = await useMyFetch<{
-    list: Array<MemoVO>;
-    total: number;
-    hasNext: boolean;
-  }>("/memo/list", {
-    ...state,
-    userId: parseInt(userId),
-  });
-  memos.value = res.list;
-  hasNext.value = res.hasNext;
+  initialLoading.value = true;
+  state.page = 1;
+  try {
+    const res = await useMyFetch<{
+      list: Array<MemoVO>;
+      total: number;
+      hasNext: boolean;
+    }>("/memo/list", {
+      ...state,
+      userId: parseInt(userId),
+    });
+    memos.value = res?.list || [];
+    hasNext.value = Boolean(res?.hasNext);
+  } finally {
+    initialLoading.value = false;
+  }
 };
 
 const loadMore = async () => {
-  state.page = state.page + 1;
-  const res = await useMyFetch<{
-    list: Array<MemoVO>;
-    total: number;
-    hasNext: boolean;
-  }>("/memo/list", state);
-  memos.value = [...memos.value, ...res.list];
-  hasNext.value = res.hasNext;
+  if (initialLoading.value || loadingMore.value || !hasNext.value) {
+    return;
+  }
+  loadingMore.value = true;
+  const nextPage = state.page + 1;
+  try {
+    const res = await useMyFetch<{
+      list: Array<MemoVO>;
+      total: number;
+      hasNext: boolean;
+    }>("/memo/list", {
+      ...state,
+      page: nextPage,
+      userId: parseInt(userId),
+    });
+    state.page = nextPage;
+    memos.value = [...memos.value, ...(res?.list || [])];
+    hasNext.value = Boolean(res?.hasNext);
+  } finally {
+    loadingMore.value = false;
+  }
 };
 
 memoReloadEvent.on(async () => {
