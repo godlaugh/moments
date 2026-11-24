@@ -54,6 +54,7 @@
     </div>
 
     <div
+      v-if="showToolbar"
       class="dark:bg-neutral-800 hidden sm:flex sm:absolute sm:-right-10 sm:rounded sm:p-2 sm:flex-col sm:w-fit justify-end shadow w-full flex-row top-0 p-1 flex gap-2 bg-white"
     >
       <svg
@@ -150,7 +151,13 @@
       </NuxtLink>
     </div>
 
-    <img class="header-img w-full" :src="props.user.coverUrl" alt="" />
+    <img
+      class="header-img w-full select-none"
+      draggable="false"
+      :src="props.user.coverUrl"
+      alt=""
+      @click="onCoverClick"
+    />
     <div class="absolute right-2 bottom-[-40px]">
       <div class="userinfo flex flex-col">
         <div class="flex flex-row items-center gap-4 justify-end">
@@ -180,6 +187,34 @@ const route = useRoute();
 const props = defineProps<{ user: UserVO }>();
 const mode = useColorMode();
 const { y } = useWindowScroll();
+
+const showToolbar = useState<boolean>("headerToolbarVisible", () => false);
+let coverClickCount = 0;
+let coverClickResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+const onCoverClick = () => {
+  coverClickCount += 1;
+  if (coverClickResetTimer) {
+    clearTimeout(coverClickResetTimer);
+  }
+  if (coverClickCount >= 5) {
+    showToolbar.value = !showToolbar.value;
+    coverClickCount = 0;
+    coverClickResetTimer = null;
+    return;
+  }
+  coverClickResetTimer = setTimeout(() => {
+    coverClickCount = 0;
+    coverClickResetTimer = null;
+  }, 3000);
+};
+
+onBeforeUnmount(() => {
+  if (coverClickResetTimer) {
+    clearTimeout(coverClickResetTimer);
+    coverClickResetTimer = null;
+  }
+});
 
 const logout = async () => {
   global.value.userinfo = {};
