@@ -59,6 +59,12 @@ func setupRouter(injector do.Injector) {
 	fileGroup.POST("/s3PreSigned", fileHandler.S3PreSigned)
 
 	uploadGroup := e.Group("/upload")
+	uploadGroup.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			return next(c)
+		}
+	})
 	uploadGroup.Use(middleware.StaticWithConfig(middleware.StaticConfig{
 		Root:       cfg.UploadDir,
 		HTML5:      false,

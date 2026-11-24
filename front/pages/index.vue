@@ -15,6 +15,7 @@
 import type {MemoVO, UserVO} from "~/types";
 import Memo from "~/components/Memo.vue";
 import {memoChangedEvent, memoReloadEvent} from "~/event";
+import {consumePrefetchedHomeMemos} from "~/utils";
 
 const currentUser = useState<UserVO>('userinfo')
 
@@ -28,18 +29,21 @@ const state = reactive({
 
 const memos = ref<Array<MemoVO>>([])
 onMounted(async () => {
-  await reload()
+  await reload(true)
 })
 
-const reload = async () => {
+const reload = async (usePrefetch = false) => {
   initialLoading.value = true
   state.page = 1
   try {
-    const res = await useMyFetch<{
-      list: Array<MemoVO>,
-      total: number,
-      hasNext: boolean
-    }>('/memo/list', state)
+    const prefetched = usePrefetch ? consumePrefetchedHomeMemos() : null
+    const res = prefetched
+      ? await prefetched
+      : await useMyFetch<{
+          list: Array<MemoVO>,
+          total: number,
+          hasNext: boolean
+        }>('/memo/list', state)
     memos.value = res?.list || []
     hasNext.value = Boolean(res?.hasNext)
   } finally {

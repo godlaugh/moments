@@ -69,10 +69,20 @@ func (m MemoHandler) handleImgConfigs(sysConfigVO *vo.FullSysConfigVO, memo *db.
 		}
 
 		if strings.HasPrefix(img, "/upload/") {
-			thumb_filename := img + "_thumb"
-			thumb_filepath := path.Join(m.base.cfg.UploadDir, path.Base(thumb_filename))
-			if fs_util.Exists(thumb_filepath) {
-				imgConfig.ThumbUrl = &thumb_filename
+			ext := path.Ext(img)
+			baseNoExt := strings.TrimSuffix(img, ext)
+			candidates := []string{
+				baseNoExt + "_thumb.webp",
+				baseNoExt + "_thumb" + ext,
+				img + "_thumb",
+			}
+			for _, candidate := range candidates {
+				thumbFilepath := path.Join(m.base.cfg.UploadDir, path.Base(candidate))
+				if fs_util.Exists(thumbFilepath) {
+					c := candidate
+					imgConfig.ThumbUrl = &c
+					break
+				}
 			}
 		} else if sysConfigVO.S3.ThumbnailSuffix != "" && strings.HasPrefix(img, sysConfigVO.S3.Domain) {
 			thumbnailSuffix := sysConfigVO.S3.ThumbnailSuffix

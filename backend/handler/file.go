@@ -118,7 +118,7 @@ func (f FileHandler) Upload(c echo.Context) error {
 		if SupportCompress(filename) {
 			thumb_filename := fmt.Sprintf("%s_thumb%s", sha256, ext)
 			thumb_filepath := path.Join(f.base.cfg.UploadDir, thumb_filename)
-			if err := CompressImage(f, filePath, thumb_filepath, 30); err != nil {
+			if err := CompressImage(f, filePath, thumb_filepath, 78); err != nil {
 				f.base.log.Error().Msgf("压缩文件异常: %v", err)
 			}
 		}
@@ -211,7 +211,7 @@ func (f FileHandler) Clean(c echo.Context) error {
 				ext := filepath.Ext(file)
 				filenameWithoutExt := strings.TrimSuffix(file, ext)
 				thumbFilename := fmt.Sprintf("%s_thumb%s", filenameWithoutExt, ext)
-				usedFiles = append(usedFiles, thumbFilename)
+				usedFiles = append(usedFiles, thumbFilename, fmt.Sprintf("%s_thumb.webp", filenameWithoutExt))
 			}
 		}
 	}

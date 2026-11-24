@@ -154,6 +154,8 @@
     <img
       class="header-img w-full select-none touch-manipulation"
       draggable="false"
+      fetchpriority="high"
+      decoding="async"
       :src="props.user.coverUrl"
       alt=""
       @click="onCoverClick"

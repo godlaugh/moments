@@ -66,14 +66,22 @@
 <script lang="ts" setup>
 import type { SysConfigVO, UserVO } from "~/types";
 import { useGlobalState } from "~/store";
+import { prefetchHomeMemos } from "~/utils";
 
+const route = useRoute();
 const global = useGlobalState();
 const open = useState<boolean>("sidebarOpen", () => false);
 const showToolbar = useState<boolean>("headerToolbarVisible", () => false);
 const currentUser = useState<UserVO>("userinfo");
 const sysConfig = useState<SysConfigVO>("sysConfig");
-const currentProfile = await useMyFetch<UserVO>("/user/profile");
-const sysConfigVO = await useMyFetch<SysConfigVO>("/sysConfig/get");
+
+if (route.path === "/") {
+  prefetchHomeMemos();
+}
+const [currentProfile, sysConfigVO] = await Promise.all([
+  useMyFetch<UserVO>("/user/profile"),
+  useMyFetch<SysConfigVO>("/sysConfig/get"),
+]);
 if (currentProfile) {
   currentUser.value = currentProfile;
   sysConfig.value = sysConfigVO;

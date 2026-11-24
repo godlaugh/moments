@@ -30,8 +30,15 @@ func CompressImage(f FileHandler, originImagePath string, thumbImagePath string,
 	}
 	defer thumbImageFile.Close()
 
-	compressedImage := imaging.Resize(originImage, 600, 0, imaging.Lanczos)
-	err = imaging.Encode(thumbImageFile, compressedImage, imaging.JPEG)
+	if quality <= 0 || quality > 100 {
+		quality = 78
+	}
+
+	compressedImage := originImage
+	if originImage.Bounds().Dx() > 800 {
+		compressedImage = imaging.Resize(originImage, 800, 0, imaging.Lanczos)
+	}
+	err = imaging.Encode(thumbImageFile, compressedImage, imaging.JPEG, imaging.JPEGQuality(quality))
 	if err != nil {
 		f.base.log.Error().Msgf("failed to save image: %v", err)
 		os.Remove(thumbImagePath)

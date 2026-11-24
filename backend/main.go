@@ -78,6 +78,31 @@ func main() {
 	setupRouter(injector)
 
 	if staticFiles != nil {
+		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				if c.Request().Method == http.MethodGet || c.Request().Method == http.MethodHead {
+					reqPath := c.Request().URL.Path
+					switch {
+					case strings.HasPrefix(reqPath, "/_nuxt/"):
+						c.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					case strings.HasPrefix(reqPath, "/css/"),
+						strings.HasPrefix(reqPath, "/js/"),
+						strings.HasPrefix(reqPath, "/favicon"),
+						strings.HasPrefix(reqPath, "/cover"),
+						strings.HasPrefix(reqPath, "/avatar"):
+						c.Response().Header().Set("Cache-Control", "public, max-age=604800")
+					default:
+						if !strings.HasPrefix(reqPath, "/api/") &&
+							!strings.HasPrefix(reqPath, "/upload/") &&
+							!strings.HasPrefix(reqPath, "/rss") &&
+							!strings.HasPrefix(reqPath, "/swagger/") {
+							c.Response().Header().Set("Cache-Control", "no-cache")
+						}
+					}
+				}
+				return next(c)
+			}
+		})
 		e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
 			Root:       "public",
 			HTML5:      true,

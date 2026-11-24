@@ -298,8 +298,15 @@ import type { ExtDTO, MemoVO, SysConfigVO } from "~/types";
 import { toast } from "vue-sonner";
 import { memoChangedEvent, memoReloadEvent } from "~/event";
 import Comment from "~/components/Comment.vue";
+import { useIntersectionObserver } from "@vueuse/core";
 import { useGlobalState } from "~/store";
-import { md } from "~/utils";
+import {
+  ensureShiki,
+  extractCodeFenceLangs,
+  hasCodeFence,
+  md,
+  shikiReady,
+} from "~/utils";
 
 const showMore = ref(false);
 const showMoreClicked = ref(false);
@@ -445,7 +452,42 @@ onMounted(() => {
   }
 });
 
+const attachCodeCopyButtons = () => {
+  if (!contentRef.value) return;
+  contentRef.value.querySelectorAll("pre.shiki").forEach((pre) => {
+    if (pre.querySelector(".copyBtn")) return;
+    const copyBtn = document.createElement("div");
+    copyBtn.innerText = "复制";
+    copyBtn.classList.add("copyBtn");
+    copyBtn.addEventListener("click", () => {
+      const code = pre.querySelector("code")?.textContent || "";
+      navigator.clipboard?.writeText(code);
+      copyBtn.innerText = "已复制!";
+      copyBtn.style.color = "#ccc";
+      setTimeout(() => {
+        copyBtn.innerText = "复制";
+        copyBtn.style.color = "#000";
+      }, 3000);
+    });
+    pre.insertAdjacentElement("beforeend", copyBtn);
+  });
+};
+
+const hasCode = computed(() => hasCodeFence(item.value.content));
+
+const { stop: stopShikiObserver } = useIntersectionObserver(
+  contentRef,
+  ([entry]) => {
+    if (entry?.isIntersecting && hasCode.value) {
+      ensureShiki(extractCodeFenceLangs(item.value.content));
+      stopShikiObserver();
+    }
+  },
+  { rootMargin: "300px 0px 300px 0px" }
+);
+
 const content = computed(() => {
+  void shikiReady.value;
   if (item.value.content && item.value.content.length > 0) {
     try {
       return md.render(item.value.content);
@@ -456,6 +498,16 @@ const content = computed(() => {
   }
   return "";
 });
+
+watch(
+  [content, shikiReady],
+  async () => {
+    if (shikiReady.value === 0) return;
+    await nextTick();
+    attachCodeCopyButtons();
+  },
+  { immediate: true }
+);
 </script>
 
 <style lang="scss" scoped></style>

@@ -1,10 +1,8 @@
-import type { ResultVO, SysConfigVO } from "~/types"
+import type { MemoVO, ResultVO, SysConfigVO } from "~/types"
 import CryptoJS from "crypto-js"
 import { toast } from "vue-sonner"
 import { useGlobalState } from "~/store"
 import markdownit from "markdown-it"
-import { fromHighlighter } from "@shikijs/markdown-it/core"
-import { createHighlighterCore } from "shiki/core"
 
 const global = useGlobalState()
 
@@ -234,31 +232,171 @@ export const md = markdownit({
   breaks: true,
 })
 
-createHighlighterCore({
-  themes: [import("shiki/themes/github-dark.mjs")],
-  langs: [
-    import("shiki/langs/c.mjs"),
-    import("shiki/langs/css.mjs"),
-    import("shiki/langs/html.mjs"),
-    import("shiki/langs/javascript.mjs"),
-    import("shiki/langs/json.mjs"),
-    import("shiki/langs/python.mjs"),
-    import("shiki/langs/shellscript.mjs"),
-    import("shiki/langs/sql.mjs"),
-    import("shiki/langs/tsx.mjs"),
-    import("shiki/langs/xml.mjs"),
-    import("shiki/langs/yaml.mjs"),
-    import("shiki/langs/go.mjs"),
-  ],
-  loadWasm: import("shiki/wasm"),
-}).then(highlighter => {
-  md.use(
-    //@ts-ignore
-    fromHighlighter(highlighter, {
-      themes: {
-        light: "github-dark",
-        dark: "github-dark",
-      },
-    }),
-  )
-})
+export const shikiReady = ref(0)
+let shikiHighlighterPromise: Promise<any> | null = null
+let shikiPluginInstalled = false
+const loadedShikiLangs = new Set<string>()
+
+const SHIKI_LANG_LOADERS: Record<string, () => Promise<any>> = {
+  c: () => import("shiki/langs/c.mjs"),
+  css: () => import("shiki/langs/css.mjs"),
+  html: () => import("shiki/langs/html.mjs"),
+  javascript: () => import("shiki/langs/javascript.mjs"),
+  js: () => import("shiki/langs/javascript.mjs"),
+  json: () => import("shiki/langs/json.mjs"),
+  python: () => import("shiki/langs/python.mjs"),
+  py: () => import("shiki/langs/python.mjs"),
+  shellscript: () => import("shiki/langs/shellscript.mjs"),
+  sh: () => import("shiki/langs/shellscript.mjs"),
+  bash: () => import("shiki/langs/shellscript.mjs"),
+  shell: () => import("shiki/langs/shellscript.mjs"),
+  zsh: () => import("shiki/langs/shellscript.mjs"),
+  sql: () => import("shiki/langs/sql.mjs"),
+  tsx: () => import("shiki/langs/tsx.mjs"),
+  ts: () => import("shiki/langs/tsx.mjs"),
+  typescript: () => import("shiki/langs/tsx.mjs"),
+  xml: () => import("shiki/langs/xml.mjs"),
+  yaml: () => import("shiki/langs/yaml.mjs"),
+  yml: () => import("shiki/langs/yaml.mjs"),
+  go: () => import("shiki/langs/go.mjs"),
+  golang: () => import("shiki/langs/go.mjs"),
+}
+
+export const extractCodeFenceLangs = (text?: string): string[] => {
+  if (!text) return []
+  const langs = new Set<string>()
+  const re = /(?:^|\n)\s*(?:```|~~~)\s*([a-zA-Z0-9_-]*)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const lang = (m[1] || "").toLowerCase()
+    if (lang && SHIKI_LANG_LOADERS[lang]) {
+      langs.add(lang)
+    }
+  }
+  return Array.from(langs)
+}
+
+export const hasCodeFence = (text?: string) =>
+  Boolean(text && /(^|\n)\s*(```|~~~)/.test(text))
+
+export const ensureShiki = async (langs: string[] = []): Promise<void> => {
+  try {
+    if (!shikiHighlighterPromise) {
+      shikiHighlighterPromise = (async () => {
+        const [{ createHighlighterCore }, { createJavaScriptRegexEngine }] =
+          await Promise.all([
+            import("shiki/core"),
+            import("shiki/engine/javascript"),
+          ])
+        return createHighlighterCore({
+          themes: [import("shiki/themes/github-dark.mjs")],
+          langs: [],
+          engine: createJavaScriptRegexEngine(),
+        })
+      })().catch(err => {
+        shikiHighlighterPromise = null
+        throw err
+      })
+    }
+
+    const highlighter = await shikiHighlighterPromise
+    let changed = false
+
+    const missingLangs = langs.filter(
+      l => SHIKI_LANG_LOADERS[l] && !loadedShikiLangs.has(l),
+    )
+    if (missingLangs.length > 0) {
+      await highlighter.loadLanguage(
+        ...missingLangs.map(l => SHIKI_LANG_LOADERS[l]()),
+      )
+      missingLangs.forEach(l => loadedShikiLangs.add(l))
+      changed = true
+    }
+
+    if (!shikiPluginInstalled) {
+      const { fromHighlighter } = await import("@shikijs/markdown-it/core")
+      md.use(
+        //@ts-ignore
+        fromHighlighter(highlighter, {
+          themes: {
+            light: "github-dark",
+            dark: "github-dark",
+          },
+          fallbackLanguage: "text",
+        }),
+      )
+      shikiPluginInstalled = true
+      changed = true
+    }
+
+    if (changed) {
+      shikiReady.value += 1
+    }
+  } catch (err) {
+    console.error("Failed to initialize Shiki highlighter", err)
+  }
+}
+
+let musicAssetsPromise: Promise<void> | null = null
+
+const loadExternalScript = (src: string) =>
+  new Promise<void>((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve()
+      return
+    }
+    const script = document.createElement("script")
+    script.src = src
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error(`Failed to load ${src}`))
+    document.head.appendChild(script)
+  })
+
+export const ensureMusicAssets = (): Promise<void> => {
+  if (!import.meta.client) return Promise.resolve()
+  if (musicAssetsPromise) return musicAssetsPromise
+
+  musicAssetsPromise = (async () => {
+    if (!document.querySelector('link[href="/css/APlayer.min.css"]')) {
+      const link = document.createElement("link")
+      link.rel = "stylesheet"
+      link.href = "/css/APlayer.min.css"
+      document.head.appendChild(link)
+    }
+    await loadExternalScript("/js/APlayer.min.js")
+    await loadExternalScript("/js/Meting.min.js")
+  })().catch(err => {
+    musicAssetsPromise = null
+    console.error("Failed to load music player assets", err)
+  })
+
+  return musicAssetsPromise
+}
+
+export type MemoListResult = {
+  list: Array<MemoVO>
+  total: number
+  hasNext: boolean
+}
+
+let prefetchedHomeMemos: Promise<MemoListResult> | null = null
+
+export const prefetchHomeMemos = () => {
+  if (!prefetchedHomeMemos) {
+    prefetchedHomeMemos = useMyFetch<MemoListResult>("/memo/list", {
+      page: 1,
+      size: 10,
+    }).catch(err => {
+      prefetchedHomeMemos = null
+      throw err
+    })
+  }
+  return prefetchedHomeMemos
+}
+
+export const consumePrefetchedHomeMemos = (): Promise<MemoListResult> | null => {
+  const pending = prefetchedHomeMemos
+  prefetchedHomeMemos = null
+  return pending
+}

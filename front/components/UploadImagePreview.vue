@@ -42,6 +42,8 @@
       >
         <img
           class="cursor-zoom-in rounded"
+          loading="lazy"
+          decoding="async"
           :src="imageConfig.thumbUrl"
           :onerror="`javascript:this.src='${imageConfig.url}';this.onerror=null`"
         />
@@ -51,8 +53,6 @@
 </template>
 
 <script setup lang="ts">
-import { useSortable } from "@vueuse/integrations/useSortable";
-
 interface ImgConfig {
   id: number;
   url: string;
@@ -94,7 +94,8 @@ const removeImage = async (index: number) => {
 
 onMounted(() => {
   if (route.path.startsWith("/new") || route.path.startsWith("/edit")) {
-    setTimeout(() => {
+    setTimeout(async () => {
+      const { useSortable } = await import("@vueuse/integrations/useSortable");
       useSortable(el, images);
     }, 500);
   }
